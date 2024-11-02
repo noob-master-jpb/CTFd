@@ -1,0 +1,23 @@
+{
+    "Image": "config",
+    "HostConfig": {
+    "PortBindings": {
+      "80/tcp": [
+        {
+          "HostPort": "config"
+        }
+      ]
+    }
+  },
+  "ExposedPorts": {
+    "80/tcp": {}
+  },
+  "NetworkingConfig": {
+    "EndpointsConfig": {
+      "bridge": {
+        "IPAMConfig": {}
+      }
+    }
+  }
+}
+    

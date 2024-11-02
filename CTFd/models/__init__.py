@@ -1111,3 +1111,49 @@ class Brackets(db.Model):
     name = db.Column(db.String(255))
     description = db.Column(db.Text)
     type = db.Column(db.String(80))
+
+
+class Containers(db.Model):
+    __tablename__ = "containers"  # Change to lowercase
+    id = db.Column(db.Integer, primary_key=True)
+    
+    challenge_id = db.Column(
+        db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"), nullable=False
+    )
+    
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+
+    
+    container_name = db.Column(db.String(255),nullable=False,unique=True)
+
+    container_id = db.Column(db.String(255),nullable = False,unique = True)
+    connection = db.Column(db.String(255),nullable = False,unique = True)
+
+
+    # Relationships
+    chall_id = db.relationship(
+        "Challenges", backref="containers", foreign_keys=[challenge_id], lazy=True
+    )
+    user = db.relationship(
+        "Users", backref="containers", foreign_keys=[user_id], lazy=True
+    )   
+
+
+class Ports(db.Model):
+    __tablename__ = "ports"  
+    id = db.Column(db.Integer, primary_key=True)
+    
+    port = db.Column(db.Integer, nullable=False, unique=True)
+    userid = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+
+    status = db.Column(db.String(255),nullable = False)
+
+    # Relationships
+    user = db.relationship(
+        "Users", backref="ports", foreign_keys=[userid], lazy=True
+    )
+
+
+

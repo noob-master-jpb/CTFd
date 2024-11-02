@@ -13,6 +13,16 @@ from CTFd.models import ChallengeFiles as ChallengeFilesModel
 from CTFd.models import Challenges
 from CTFd.models import ChallengeTopics as ChallengeTopicsModel
 from CTFd.models import Fails, Flags, Hints, HintUnlocks, Solves, Submissions, Tags, db
+
+#adding containers, users and ports table to the file
+from CTFd.models import Users, Containers, Ports
+
+#importing a function from key_reader for api key
+#make sure to make changes as per requirements to the function named api_key()
+import CTFd.portainer as portainer 
+from random import randint
+
+
 from CTFd.plugins.challenges import CHALLENGE_CLASSES, get_chal_class
 from CTFd.schemas.challenges import ChallengeSchema
 from CTFd.schemas.flags import FlagSchema
@@ -812,3 +822,241 @@ class ChallengeRequirements(Resource):
     def get(self, challenge_id):
         challenge = Challenges.query.filter_by(id=challenge_id).first_or_404()
         return {"success": True, "data": challenge.requirements}
+
+#api/v1/challenges/instance
+@challenges_namespace.route("/instance")
+class ChallengeStart(Resource):
+
+
+    def get(self):
+        return {"Api is working":True,"success":True},200
+
+
+    @check_challenge_visibility
+    @during_ctf_time_only
+    @require_verified_emails
+    def post(self):
+        
+        headers = request.headers
+
+        #converting headers to mapping``
+        head = {}
+        
+        #key validation for headers
+        try:
+            head["Userid"] = headers["userId"]
+        except KeyError:
+            return {"status": "Userid header missing"}, 400
+
+        try:
+            head["Username"] = headers["userName"]
+        except KeyError:
+            return {"status": "Username header missing"}, 400
+
+        try:
+            head["Useremail"] = headers["userEmail"]
+        except KeyError:
+            return {"status": "Useremail header missing"}, 400
+
+        try:
+            head["Challengeid"] = headers["challengeId"]
+        except KeyError:
+            return {"status": "Challengeid header missing"}, 400
+
+
+
+
+        #checking for empty values
+        for key in head.keys():
+            val = head[key]
+            if (val == "") or (val == None):
+                return {"status":f"{key} cannot be empty"},400
+            
+
+
+        #userid input validation 
+        try:
+            if int(head["Userid"]) < 0:
+                return {"status":"Userid cannot be negative"},400
+        except ValueError:
+            return {"status":"Userid must be an integer"},400
+        except TypeError:
+            return {"status":"Userid must be an integer"},400
+
+
+        #useremail input validation    
+        if " " in head["Useremail"]:
+            return {"status":"Useremail cannot contain spaces"},400
+        if "@" not in head["Useremail"]:
+            return {"status":"Invalid Useremail"},400
+        
+
+        #challengeid input validation
+        try:
+            if int(head["Challengeid"]) < 0:
+                return {"status":"Challengeid cannot be negative"},400
+        except ValueError:
+            return {"status":"Challengeid must be an integer"},400
+        except TypeError:
+            return {"status":"Challengeid must be an integer"},400
+
+
+       
+        #querying users table for data for the user by useris
+        try:
+        #data for user|table |   command    | column and value | does what it says
+        #   [       ] [     ][              ][                ] [     ]
+            Usersdata= Users.query.filter_by(id=head["Userid"]).first()
+        except:
+            return {"error":"database"},503
+
+
+        #user authetication
+        if not Usersdata:
+            return {"error":"User does not exist"},404
+        
+        if head["Username"] != Usersdata.name:
+            return {"error":"Credentials does not match"},401
+
+        if head["Useremail"] != Usersdata.email:
+            return {"error":"Credentials does not match"},401
+        
+
+        #cahllenge id validation
+        try:
+            chal_data = Challenges.query.filter_by(id=head["Challengeid"]).first()
+        except:
+            return {"Error":"database"},503
+        
+
+        if not chal_data:
+            return {"status":"Challenge does not exist"},404
+        
+        if chal_data.state == "hidden":
+            return {"status":"Improper challengeid"},423
+
+        if chal_data.category != "web":
+            return {"status":"Improper request for challenge"},400
+
+        try:
+            #checking if challenge has been solved by user
+            if Solves.query.filter_by(user_id=head["Userid"],challenge_id=head["Challengeid"]).first():
+                return {"status":"User has already solved this challenge"},429
+        except:
+            return{"Error":"database"},503
+
+        
+        #checking if user already has a container
+        Containersdata = Containers.query.filter_by(user_id=head["Userid"]).first()
+        if Containersdata:
+            return {"status":"User already has a container. Delete it first before creating a new one","connection_id":Containersdata.connection},409
+
+        #port assigning
+        while True:
+            start = 5000
+            end = 6000
+            port = randint(start, end)
+            #checking if port is available
+            if not Ports.query.filter_by(port=port).first():
+                #add port to database
+                try:
+                    port_data = Ports(port=port,userid=head["Userid"],status="open")
+                    db.session.add(port_data)
+                    db.session.commit()
+                except:
+                    return {"Server Error":"could not add port to database"},500
+                break
+
+        #creating payload
+
+        image_id = portainer.imageid(head["Challengeid"])
+        if not image_id:
+            return {"Server Error":"image id not found"},500
+
+        payload = portainer.payload(port=port,image=image_id)
+        if not payload:
+            return {"Server Error":"payload not found"},500
+        
+        #loading api key
+        try:
+            api_key = portainer.api_key()
+            if not api_key:
+                return {"Server Error":"api key not found"},500
+        except:
+            return {"Server Error":"could not load api key"},500
+        
+
+        
+
+        container_name = f"{head['Username']}_{port}"
+        #endpoint id
+            #not yet implemented thus hardcoded
+        endpoint = portainer.endpoint()
+
+        #creating container
+        response_create = portainer.create_continers(
+            endpoint=endpoint,
+            key=api_key,
+            name=container_name,
+            payload = payload
+        )
+        
+        if not response_create:
+            return {"Server Error":f"could not create container  -> no response {response_create.text}"},501
+        
+        try:
+            if int(response_create.status_code) not in [200,201,202,204]:
+                return {"Server Error":f"could not create container -> status_code {response_create.status_code}"},500
+        except ValueError:
+            return {"Server Error":"Bad response from the internal server"},500
+              
+
+        try:
+            container_id = response_create.json()["Id"]
+            print(f"\n{container_id} container id")
+        except KeyError:
+            return {"Server Error":f"could not create container -> status_code {response_create.status_code}"},500
+        
+        #updating port status
+
+        port_record = Ports.query.filter_by(port=port).first()
+        if not port:
+            return {"Server Error":"port was not assinged before container creation"},500
+        
+        port_record.status = "in use"
+        db.session.commit()
+
+        #starting container
+        
+        response_start = portainer.start_container(
+            endpoint_id=endpoint,
+            key=api_key,
+            container_id=container_id
+        )
+        
+        
+        try:
+            if int(response_start.status_code) not in [200,201,202,204]:
+                return {"Server Error":f"could not start container -> status_code {response_start.status_code}"},500
+        except ValueError:
+            return {"Server Error":"Bad response from the internal server"},500
+        
+        ip = "localhost"
+
+        # try:
+        connnection = Containers(
+            challenge_id=int(head["Challengeid"]),
+            user_id=int(head["Userid"]),
+            container_name=str(container_name),
+            container_id=str(container_id),
+            connection=f"{ip}:{port}", #change localhost to repective ip
+            )
+
+        db.session.add(connnection)
+        db.session.commit()
+
+        
+        
+
+        return {"status":"success","connection":f"{ip}:{port}"}, 200
+        
