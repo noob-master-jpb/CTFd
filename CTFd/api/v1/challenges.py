@@ -1060,3 +1060,152 @@ class ChallengeStart(Resource):
 
         return {"status":"success","connection":f"{ip}:{port}"}, 200
         
+
+    @check_challenge_visibility
+    @during_ctf_time_only
+    @require_verified_emails
+    def delete(self):
+        
+        headers = request.headers
+
+        #converting headers to mapping``
+        head = {}
+        
+        #key validation for headers
+        try:
+            head["Userid"] = headers["userId"]
+        except KeyError:
+            return {"status": "Userid header missing"}, 400
+
+        try:
+            head["Username"] = headers["userName"]
+        except KeyError:
+            return {"status": "Username header missing"}, 400
+
+        try:
+            head["Useremail"] = headers["userEmail"]
+        except KeyError:
+            return {"status": "Useremail header missing"}, 400
+
+        try:
+            head["Challengeid"] = headers["challengeId"]
+        except KeyError:
+            return {"status": "Challengeid header missing"}, 400
+
+
+
+
+        #checking for empty values
+        for key in head.keys():
+            val = head[key]
+            if (val == "") or (val == None):
+                return {"status":f"{key} cannot be empty"},400
+            
+
+
+        #userid input validation 
+        try:
+            if int(head["Userid"]) < 0:
+                return {"status":"Userid cannot be negative"},400
+        except ValueError:
+            return {"status":"Userid must be an integer"},400
+        except TypeError:
+            return {"status":"Userid must be an integer"},400
+
+
+        #useremail input validation    
+        if " " in head["Useremail"]:
+            return {"status":"Useremail cannot contain spaces"},400
+        if "@" not in head["Useremail"]:
+            return {"status":"Invalid Useremail"},400
+        
+
+        #challengeid input validation
+        try:
+            if int(head["Challengeid"]) < 0:
+                return {"status":"Challengeid cannot be negative"},400
+        except ValueError:
+            return {"status":"Challengeid must be an integer"},400
+        except TypeError:
+            return {"status":"Challengeid must be an integer"},400
+
+
+       
+        #querying users table for data for the user by useris
+        try:
+        #data for user|table |   command    | column and value | does what it says
+        #   [       ] [     ][              ][                ] [     ]
+            Usersdata= Users.query.filter_by(id=head["Userid"]).first()
+        except:
+            return {"error":"database"},503
+
+
+        #user authetication
+        if not Usersdata:
+            return {"error":"User does not exist"},404
+        
+        if head["Username"] != Usersdata.name:
+            return {"error":"Credentials does not match"},401
+
+        if head["Useremail"] != Usersdata.email:
+            return {"error":"Credentials does not match"},401
+        
+
+        #cahllenge id validation
+        try:
+            chal_data = Challenges.query.filter_by(id=head["Challengeid"]).first()
+        except:
+            return {"Error":"database"},503
+        
+
+        if not chal_data:
+            return {"status":"Challenge does not exist"},404
+        
+        if chal_data.state == "hidden":
+            return {"status":"Improper challengeid"},423
+
+        if chal_data.category != "web":
+            return {"status":"Improper request for challenge"},400
+
+        Containersdata = Containers.query.filter_by(user_id=head["Userid"]).first()
+        if not Containersdata:
+            return {"status":"User has  no contaier running "}, 404
+        
+        try:
+            api_key = portainer.api_key()
+            if not api_key:
+                return {"Server Error":"api key not found"},500
+        except:
+            return {"Server Error":"could not load api key"},500
+        
+
+        endpoint = portainer.endpoint()
+
+        container_id = Containersdata.container_id
+
+        port = str(Containersdata.connection).split(":")[1]
+        print(f"\n{port}\n")
+
+        Portdata = Ports.query.filter_by(port=port).first()
+
+        if not Portdata:
+            port_add = Ports(port=port,userid=head["Userid"],status="closing")
+            db.session.add(port_add)
+            db.session.commit()
+            
+        Portdata = Ports.query.filter_by(port=port).first()
+
+        
+        response_delete = portainer.delete_containers(endpoint=endpoint,key=api_key,id = container_id)
+        
+        if int(response_delete.status_code) in [400,404,409,500]:
+            return {"error":f"could not delete container response -> {response_delete.status_code}"},500
+
+        try:
+            port_update = Ports.query.filter_by(port=port).first()
+            port_update.status = "closed"
+            db.session.commit()
+        except:
+            return {"error":"container deleted but port not updated"},207
+
+        return {"status":"container deleted"},200

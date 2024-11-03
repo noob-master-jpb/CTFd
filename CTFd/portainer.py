@@ -197,7 +197,7 @@ def delete_containers(base_ip= "portainer",base_port= "9443",endpoint=None,key=N
     if not id:
         raise Exception("No container name provided")
 
-    location = f"api/endpoints/1/docker/containers/{id}?force=true"
+    location = f"api/endpoints/{endpoint}/docker/containers/{id}?force=true"
 
     
     headers = {'Authorization':f"Bearer {key}", 
