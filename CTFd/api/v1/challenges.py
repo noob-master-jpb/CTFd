@@ -827,14 +827,108 @@ class ChallengeRequirements(Resource):
 @challenges_namespace.route("/instance")
 class ChallengeStart(Resource):
 
-
-    def get(self):
-        return {"Api is working":True,"success":True},200
-
-
+    @require_verified_emails
     @check_challenge_visibility
     @during_ctf_time_only
+    def get(self): #get request cannot be performed until logged in thus safe enough to check if a container is running or not
+        
+        headers = request.headers
+
+        #converting headers to mapping``
+        head = {}
+        
+        #key validation for headers
+        try:
+            head["Userid"] = headers["userId"]
+        except KeyError:
+            return {"status": "Userid header missing"}, 400
+
+        try:
+            head["Username"] = headers["userName"]
+        except KeyError:
+            return {"status": "Username header missing"}, 400
+
+        try:
+            head["Useremail"] = headers["userEmail"]
+        except KeyError:
+            return {"status": "Useremail header missing"}, 400
+
+        try:
+            head["Challengeid"] = headers["challengeId"]
+        except KeyError:
+            return {"status": "Challengeid header missing"}, 400
+
+
+
+
+        #checking for empty values
+        for key in head.keys():
+            val = head[key]
+            if (val == "") or (val == None):
+                return {"status":f"{key} cannot be empty"},400
+            
+
+
+        #userid input validation 
+        try:
+            if int(head["Userid"]) < 0:
+                return {"status":"Userid cannot be negative"},400
+        except ValueError:
+            return {"status":"Userid must be an integer"},400
+        except TypeError:
+            return {"status":"Userid must be an integer"},400
+
+
+        #useremail input validation    
+        if " " in head["Useremail"]:
+            return {"status":"Useremail cannot contain spaces"},400
+        if "@" not in head["Useremail"]:
+            return {"status":"Invalid Useremail"},400
+        
+
+        #challengeid input validation
+        try:
+            if int(head["Challengeid"]) < 0:
+                return {"status":"Challengeid cannot be negative"},400
+        except ValueError:
+            return {"status":"Challengeid must be an integer"},400
+        except TypeError:
+            return {"status":"Challengeid must be an integer"},400
+
+
+       
+        #querying users table for data for the user by useris
+        try:
+        #data for user|table |   command    | column and value | does what it says
+        #   [       ] [     ][              ][                ] [     ]
+            Usersdata= Users.query.filter_by(id=head["Userid"]).first()
+        except:
+            return {"error":"database"},503
+
+
+        #user authetication
+        if not Usersdata:
+            return {"error":"User does not exist"},404
+        
+        if head["Username"] != Usersdata.name:
+            return {"error":"Credentials does not match"},401
+
+        if head["Useremail"] != Usersdata.email:
+            return {"error":"Credentials does not match"},401
+        
+
+        #getting container data
+        Containersdata = Containers.query.filter_by(user_id=head["Userid"]).first()
+        if not Containersdata:
+            return {"error":"User does not have a container"},404
+
+
+        return {"connection":f"{Containersdata.connection}"},200
+
     @require_verified_emails
+    @check_challenge_visibility
+    @during_ctf_time_only
+    
     def post(self):
         
         headers = request.headers
@@ -953,8 +1047,8 @@ class ChallengeStart(Resource):
 
         #port assigning
         while True:
-            start = 5000
-            end = 6000
+            start = 45000
+            end = 55000
             port = randint(start, end)
             #checking if port is available
             if not Ports.query.filter_by(port=port).first():
@@ -1061,9 +1155,9 @@ class ChallengeStart(Resource):
         return {"status":"success","connection":f"{ip}:{port}"}, 200
         
 
+    @require_verified_emails
     @check_challenge_visibility
     @during_ctf_time_only
-    @require_verified_emails
     def delete(self):
         
         headers = request.headers
@@ -1165,7 +1259,6 @@ class ChallengeStart(Resource):
             return {"status":"User has  no contaier running "}, 404
         
 
-
         #loading api key
         try:
             api_key = portainer.api_key()
@@ -1200,7 +1293,7 @@ class ChallengeStart(Resource):
         response_delete = portainer.delete_containers(
             endpoint=endpoint,
             key=api_key,
-            id = container_id)
+            id = container_id) 
         
         try:
             response_status = int(response_delete.status_code)
@@ -1222,3 +1315,4 @@ class ChallengeStart(Resource):
             return {"error":"container deleted but port not updated"},207
 
         return {"status":"container deleted"},200
+

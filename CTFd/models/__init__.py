@@ -1155,5 +1155,3 @@ class Ports(db.Model):
         "Users", backref="ports", foreign_keys=[userid], lazy=True
     )
 
-
-

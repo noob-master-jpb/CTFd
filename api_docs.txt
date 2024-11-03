@@ -1,0 +1,92 @@
+<Changes at>
+=> ./CTFd/api/v1/challenges.py --Line (17 to 23) and (828 to 1224) 
+=> ./CTFd/models/__init__.py --Line (1116 to 1156)
+=> ./CTFd/portainer.py --New_file
+=> ./CTFd/maps.json --New_file
+=> ./CTFd/payload.json --New_file
+
+
+<Tables added> 
+
+--Containers
+    +----------------+--------------+------+-----+---------+----------------+
+    | Field          | Type         | Null | Key | Default | Extra          |
+    +----------------+--------------+------+-----+---------+----------------+
+    | id             | int(11)      | NO   | PRI | NULL    | auto_increment |
+    | challenge_id   | int(11)      | NO   | MUL | NULL    |                |
+    | user_id        | int(11)      | NO   | UNI | NULL    |                |
+    | container_name | varchar(255) | NO   | UNI | NULL    |                |
+    | connection     | varchar(255) | NO   | UNI | NULL    |                |
+    | container_id   | varchar(255) | NO   | UNI | NULL    |                |
+    +----------------+--------------+------+-----+---------+----------------+
+
+    class Containers(db.Model):
+        __tablename__ = "containers"  # Change to lowercase
+        id = db.Column(db.Integer, primary_key=True)
+        
+        challenge_id = db.Column(
+            db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"), nullable=False
+        )
+        
+        user_id = db.Column(
+            db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True
+        )
+
+        
+        container_name = db.Column(db.String(255),nullable=False,unique=True)
+
+        container_id = db.Column(db.String(255),nullable = False,unique = True)
+        connection = db.Column(db.String(255),nullable = False,unique = True)
+
+
+        # Relationships
+        chall_id = db.relationship(
+            "Challenges", backref="containers", foreign_keys=[challenge_id], lazy=True
+        )
+        user = db.relationship(
+            "Users", backref="containers", foreign_keys=[user_id], lazy=True
+        )   
+
+
+
+--Ports
+
+    +--------+--------------+------+-----+---------+----------------+
+    | Field  | Type         | Null | Key | Default | Extra          |
+    +--------+--------------+------+-----+---------+----------------+
+    | id     | int(11)      | NO   | PRI | NULL    | auto_increment |
+    | port   | int(11)      | NO   | UNI | NULL    |                |
+    | userid | int(11)      | NO   | MUL | NULL    |                |
+    | status | varchar(255) | NO   |     | NULL    |                |
+    +--------+--------------+------+-----+---------+----------------+
+
+
+    class Ports(db.Model):
+        __tablename__ = "ports"  
+        id = db.Column(db.Integer, primary_key=True)
+        
+        port = db.Column(db.Integer, nullable=False, unique=True)
+        userid = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+
+        status = db.Column(db.String(255),nullable = False)
+
+        # Relationships
+        user = db.relationship(
+            "Users", backref="ports", foreign_keys=[userid], lazy=True
+        )
+
+#if database is not upto date then upgrade the database
+    steps)
+        1-  change file ./docker-compose.yml (line 20)
+                 - .:/opt/CTFd:ro
+            to
+                 - .:/opt/CTFd
+
+        2- connect to bash of ctfd container
+        3- flask db migrate -m "migrating database"      
+        4- flask db upgrade
+
+        5- change the mode of  - .:/opt/CTFd to  - .:/opt/CTFd:ro (read_only mode)
+
+#if any error happens in database use 
+    flask db downgrade
