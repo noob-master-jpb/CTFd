@@ -1151,26 +1151,22 @@ class ChallengeStart(Resource):
             return {"error":"Credentials does not match"},401
         
 
-        #cahllenge id validation
+        #challenge id validation
         try:
             chal_data = Challenges.query.filter_by(id=head["Challengeid"]).first()
         except:
             return {"Error":"database"},503
         
 
-        if not chal_data:
-            return {"status":"Challenge does not exist"},404
         
-        if chal_data.state == "hidden":
-            return {"status":"Improper challengeid"},423
-
-        if chal_data.category != "web":
-            return {"status":"Improper request for challenge"},400
-
+        #getting container data
         Containersdata = Containers.query.filter_by(user_id=head["Userid"]).first()
         if not Containersdata:
             return {"status":"User has  no contaier running "}, 404
         
+
+
+        #loading api key
         try:
             api_key = portainer.api_key()
             if not api_key:
@@ -1178,32 +1174,49 @@ class ChallengeStart(Resource):
         except:
             return {"Server Error":"could not load api key"},500
         
-
+        #loading endpoint
         endpoint = portainer.endpoint()
 
+        #loading container id
         container_id = Containersdata.container_id
 
+        #filtering port from connection
         port = str(Containersdata.connection).split(":")[1]
-        print(f"\n{port}\n")
-
+        
+        #loading port data fromm Ports table
         Portdata = Ports.query.filter_by(port=port).first()
 
+        #if port was not added to the database while creating 
         if not Portdata:
+            #booking the port with status as closing
             port_add = Ports(port=port,userid=head["Userid"],status="closing")
             db.session.add(port_add)
             db.session.commit()
-            
-        Portdata = Ports.query.filter_by(port=port).first()
+            Portdata = Ports.query.filter_by(port=port).first()
+        
+        
 
+        #deleting container
+        response_delete = portainer.delete_containers(
+            endpoint=endpoint,
+            key=api_key,
+            id = container_id)
         
-        response_delete = portainer.delete_containers(endpoint=endpoint,key=api_key,id = container_id)
+        try:
+            response_status = int(response_delete.status_code)
+        except ValueError:
+            return {'status':"unexpected status code"}
         
-        if int(response_delete.status_code) in [400,404,409,500]:
+        #checking status code
+        if (response_status in [400,404,409,500]):
             return {"error":f"could not delete container response -> {response_delete.status_code}"},500
 
+
+
+        #updating port
         try:
-            port_update = Ports.query.filter_by(port=port).first()
-            port_update.status = "closed"
+            Portdata = Ports.query.filter_by(port=port).first()
+            Portdata.status = "closed"
             db.session.commit()
         except:
             return {"error":"container deleted but port not updated"},207
