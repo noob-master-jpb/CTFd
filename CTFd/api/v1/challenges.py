@@ -831,6 +831,8 @@ class ChallengeStart(Resource):
     @check_challenge_visibility
     @during_ctf_time_only
     def get(self): #get request cannot be performed until logged in thus safe enough to check if a container is running or not
+
+#not yet ready do not test
         
         headers = request.headers
 
