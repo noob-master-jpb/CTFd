@@ -930,7 +930,6 @@ class ChallengeStart(Resource):
     @require_verified_emails
     @check_challenge_visibility
     @during_ctf_time_only
-    
     def post(self):
         
         headers = request.headers
