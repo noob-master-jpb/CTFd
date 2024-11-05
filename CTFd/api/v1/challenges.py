@@ -1136,7 +1136,7 @@ class ChallengeStart(Resource):
         except ValueError:
             return {"Server Error":"Bad response from the internal server"},500
         
-        ip = "localhost"
+        ip = portainer.ip()
 
         # try:
         connnection = Containers(

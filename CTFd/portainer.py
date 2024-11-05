@@ -63,7 +63,8 @@ def imageid(challenge_id):
 def endpoint():
     return 2 #configure this accordingly
 
-
+def ip():
+    return "localhost"
 
 
 
