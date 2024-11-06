@@ -17,13 +17,7 @@ requests.packages.urllib3.disable_warnings()
 #modify the following function according to your config
 def api_key():
     return str(os.getenv("PORTAINER_API_KEY"))
-    config = configparser.ConfigParser()
-    # try:
-    #     config.read(f"{os.getenv('CONFIG_INI_URL')}")
-    #     print(config['portainer']['api_key'])
-    #     return config['portainer']['api_key']
-    # except:
-    #     raise Exception("api_key path not found")
+
     
 def payload(port=None,image=None):
 
