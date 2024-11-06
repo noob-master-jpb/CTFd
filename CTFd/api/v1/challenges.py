@@ -823,14 +823,16 @@ class ChallengeRequirements(Resource):
         challenge = Challenges.query.filter_by(id=challenge_id).first_or_404()
         return {"success": True, "data": challenge.requirements}
 
-#api/v1/challenges/instance
-@challenges_namespace.route("/instance")
-class ChallengeStart(Resource):
+
+@challenges_namespace.route("/checkinstance")
+class ChallengeCheck(Resource):
+
+
 
     @require_verified_emails
     @check_challenge_visibility
     @during_ctf_time_only
-    def get(self): #get request cannot be performed until logged in thus safe enough to check if a container is running or not
+    def post(self): #get request cannot be performed until logged in thus safe enough to check if a container is running or not
         
         headers = request.headers
 
@@ -852,13 +854,6 @@ class ChallengeStart(Resource):
             head["Useremail"] = headers["userEmail"]
         except KeyError:
             return {"status": "Useremail header missing"}, 400
-
-        try:
-            head["Challengeid"] = headers["challengeId"]
-        except KeyError:
-            return {"status": "Challengeid header missing"}, 400
-
-
 
 
         #checking for empty values
@@ -886,14 +881,6 @@ class ChallengeStart(Resource):
             return {"status":"Invalid Useremail"},400
         
 
-        # #challengeid input validation
-        # try:
-        #     if int(head["Challengeid"]) < 0:
-        #         return {"status":"Challengeid cannot be negative"},400
-        # except ValueError:
-        #     return {"status":"Challengeid must be an integer"},400
-        # except TypeError:
-        #     return {"status":"Challengeid must be an integer"},400
 
 
        
@@ -908,7 +895,7 @@ class ChallengeStart(Resource):
 
         #user authetication
         if not Usersdata:
-            return {"error":"User does not exist"},404
+            return {"error":"User does not exist"},403
         
         if head["Username"] != Usersdata.name:
             return {"error":"Credentials does not match"},401
@@ -923,8 +910,14 @@ class ChallengeStart(Resource):
             return {"error":"User does not have a container"},404
 
 
-        return {"connection":f"{Containersdata.connection}","challenge_id":f"{Containersdata.challenge_id}"},200
+        return {"connection":f"{Containersdata.connection}","challengeId":f"{Containersdata.challenge_id}"},200
 
+
+#api/v1/challenges/instance
+@challenges_namespace.route("/instance")
+class ChallengeStart(Resource):
+
+    
     @require_verified_emails
     @check_challenge_visibility
     @during_ctf_time_only
@@ -1007,7 +1000,7 @@ class ChallengeStart(Resource):
 
         #user authetication
         if not Usersdata:
-            return {"error":"User does not exist"},404
+            return {"error":"User does not exist"},403
         
         if head["Username"] != Usersdata.name:
             return {"error":"Credentials does not match"},401
@@ -1029,8 +1022,8 @@ class ChallengeStart(Resource):
         if chal_data.state == "hidden":
             return {"status":"Improper challengeid"},423
 
-        if str(chal_data.category).upper() != str("web").upper():
-            return {"status":"Improper request for challenge"},400
+        if str(chal_data.category).upper() != "WEB":
+            return {"status":"Improper request for challenge"},406
 
         try:
             #checking if challenge has been solved by user
@@ -1043,7 +1036,7 @@ class ChallengeStart(Resource):
         #checking if user already has a container
         Containersdata = Containers.query.filter_by(user_id=head["Userid"]).first()
         if Containersdata:
-            return {"status":"User already has a container. Delete it first before creating a new one","challenge_id":f"{Containersdata.challenge_id}","connection_id":Containersdata.connection},409
+            return {"status":"User already has a container. Delete it first before creating a new one","challengeId":f"{Containersdata.challenge_id}","connection":Containersdata.connection},409
 
         #port assigning
         while True:
@@ -1058,26 +1051,26 @@ class ChallengeStart(Resource):
                     db.session.add(port_data)
                     db.session.commit()
                 except:
-                    return {"Server Error":"could not add port to database"},500
+                    return {"Server Error":"could not add port to database"},503
                 break
 
         #creating payload
 
         image_id = portainer.imageid(head["Challengeid"])
         if not image_id:
-            return {"Server Error":"image id not found"},500
+            return {"Server Error":"image id not found"},501
 
         payload = portainer.payload(port=port,image=image_id)
         if not payload:
-            return {"Server Error":"payload not found"},500
+            return {"Server Error":"payload not found"},501
         
         #loading api key
         try:
             api_key = portainer.api_key()
             if not api_key:
-                return {"Server Error":"api key not found"},500
+                return {"Server Error":"api key not found"},501
         except:
-            return {"Server Error":"could not load api key"},500
+            return {"Server Error":"could not load api key"},501
         
 
         
@@ -1096,20 +1089,20 @@ class ChallengeStart(Resource):
         )
         
         if not response_create:
-            return {"Server Error":f"could not create container  -> no response {response_create.text}"},501
+            return {"Server Error":f"could not create container  -> no response "},502
         
         try:
             if int(response_create.status_code) not in [200,201,202,204]:
-                return {"Server Error":f"could not create container -> status_code {response_create.status_code}"},500
+                return {"Server Error":f"could not create container -> status_code {response_create.status_code}"},502
         except ValueError:
-            return {"Server Error":"Bad response from the internal server"},500
+            return {"Server Error":"Bad response from the internal server"},502
               
 
         try:
             container_id = response_create.json()["Id"]
             print(f"\n{container_id} container id")
         except KeyError:
-            return {"Server Error":f"could not create container -> status_code {response_create.status_code}"},500
+            return {"Server Error":f"could not create container -> status_code {response_create.status_code}"},502
         
         #updating port status
 
@@ -1131,9 +1124,9 @@ class ChallengeStart(Resource):
         
         try:
             if int(response_start.status_code) not in [200,201,202,204]:
-                return {"Server Error":f"could not start container -> status_code {response_start.status_code}"},500
+                return {"Server Error":f"could not start container -> status_code {response_start.status_code}"},502
         except ValueError:
-            return {"Server Error":"Bad response from the internal server"},500
+            return {"Server Error":"Bad response from the internal server"},502
         
         ip = portainer.ip()
 
@@ -1181,12 +1174,6 @@ class ChallengeStart(Resource):
         except KeyError:
             return {"status": "Useremail header missing"}, 400
 
-        try:
-            head["Challengeid"] = headers["challengeId"]
-        except KeyError:
-            return {"status": "Challengeid header missing"}, 400
-
-
 
 
         #checking for empty values
@@ -1214,15 +1201,6 @@ class ChallengeStart(Resource):
             return {"status":"Invalid Useremail"},400
         
 
-        #challengeid input validation
-        try:
-            if int(head["Challengeid"]) < 0:
-                return {"status":"Challengeid cannot be negative"},400
-        except ValueError:
-            return {"status":"Challengeid must be an integer"},400
-        except TypeError:
-            return {"status":"Challengeid must be an integer"},400
-
 
        
         #querying users table for data for the user by useris
@@ -1236,7 +1214,7 @@ class ChallengeStart(Resource):
 
         #user authetication
         if not Usersdata:
-            return {"error":"User does not exist"},404
+            return {"error":"User does not exist"},403
         
         if head["Username"] != Usersdata.name:
             return {"error":"Credentials does not match"},401
@@ -1245,27 +1223,24 @@ class ChallengeStart(Resource):
             return {"error":"Credentials does not match"},401
         
 
-        #challenge id validation
-        try:
-            chal_data = Challenges.query.filter_by(id=head["Challengeid"]).first()
-        except:
-            return {"Error":"database"},503
+        
+        
         
 
         
         #getting container data
         Containersdata = Containers.query.filter_by(user_id=head["Userid"]).first()
         if not Containersdata:
-            return {"status":"User has  no contaier running "}, 404
+            return {"status":"User has  no contaier running ","container":"none"}, 404
         
 
         #loading api key
         try:
             api_key = portainer.api_key()
             if not api_key:
-                return {"Server Error":"api key not found"},500
+                return {"Server Error":"api key not found"},501
         except:
-            return {"Server Error":"could not load api key"},500
+            return {"Server Error":"could not load api key"},501
         
         #loading endpoint
         endpoint = portainer.endpoint()
@@ -1298,11 +1273,11 @@ class ChallengeStart(Resource):
         try:
             response_status = int(response_delete.status_code)
         except ValueError:
-            return {'status':"unexpected status code"}
+            return {'status':"unexpected status code"},502
         
         #checking status code
         if (response_status in [400,404,409,500]):
-            return {"error":f"could not delete container response -> {response_delete.status_code}"},500
+            return {"error":f"could not delete container response -> {response_delete.status_code}"},502
 
 
 
@@ -1319,7 +1294,7 @@ class ChallengeStart(Resource):
             db.session.delete(Containersdata)
             db.session.commit()
         except:
-            return {"error":"container deleted but data base not updated"},207
+            return {"error":"container deleted but database not updated"},207
         
         
         return {"status":"container deleted"},200
