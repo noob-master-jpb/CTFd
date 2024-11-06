@@ -2,7 +2,11 @@ import configparser
 import requests
 import urllib3
 import json
+import os
 
+from dotenv import load_dotenv
+
+load_dotenv()
 
 #ssl warning supression -- DO NOT REMOVE
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning) 
@@ -12,9 +16,10 @@ requests.packages.urllib3.disable_warnings()
 
 #modify the following function according to your config
 def api_key():
+    return str(os.getenv("PORTAINER_API_KEY"))
     config = configparser.ConfigParser()
     try:
-        config.read(r"/opt/CTFd/CTFd/config.ini")
+        config.read(f"{os.getenv('CONFIG_INI_URL')}")
         print(config['portainer']['api_key'])
         return config['portainer']['api_key']
     except:
@@ -33,7 +38,7 @@ def payload(port=None,image=None):
     
 
     try:
-        file = open("/opt/CTFd/CTFd/payload.json","r")
+        file = open(f"{os.getenv('CHAL_PAYLOAD_FILE_URL')}","r")
         payload = json.load(file)
         try:
             payload["Image"] = str(image)
@@ -50,7 +55,7 @@ def payload(port=None,image=None):
 
 
 def imageid(challenge_id):
-    file = open("/opt/CTFd/CTFd/maps.json","r")
+    file = open(f"{os.getenv('CHAL_MAP_FILE_URL')}","r")
     map = json.load(file)
     try:
         
@@ -61,11 +66,10 @@ def imageid(challenge_id):
         return
 
 def endpoint():
-    return 2 #configure this accordingly
+    return str(os.getenv('PORTAINER_ENDPOINT')) #configure this accordingly
 
 def ip():
-    return "localhost"
-
+    return str(os.getenv('PORTAINER_VM_IP'))
 
 
 #not in use but can be useful if needed
