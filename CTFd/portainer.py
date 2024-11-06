@@ -18,12 +18,12 @@ requests.packages.urllib3.disable_warnings()
 def api_key():
     return str(os.getenv("PORTAINER_API_KEY"))
     config = configparser.ConfigParser()
-    try:
-        config.read(f"{os.getenv('CONFIG_INI_URL')}")
-        print(config['portainer']['api_key'])
-        return config['portainer']['api_key']
-    except:
-        raise Exception("api_key path not found")
+    # try:
+    #     config.read(f"{os.getenv('CONFIG_INI_URL')}")
+    #     print(config['portainer']['api_key'])
+    #     return config['portainer']['api_key']
+    # except:
+    #     raise Exception("api_key path not found")
     
 def payload(port=None,image=None):
 
@@ -41,8 +41,9 @@ def payload(port=None,image=None):
         file = open(f"{os.getenv('CHAL_PAYLOAD_FILE_URL')}","r")
         payload = json.load(file)
         try:
+            #change these lines accordingly
             payload["Image"] = str(image)
-            payload["HostConfig"]["PortBindings"]["80/tcp"][0]["HostPort"] = str(port)
+            payload["HostConfig"]["PortBindings"]["80/tcp"][0]["HostPort"] = str(port) 
             
             return payload
         except KeyError:

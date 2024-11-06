@@ -831,8 +831,6 @@ class ChallengeStart(Resource):
     @check_challenge_visibility
     @during_ctf_time_only
     def get(self): #get request cannot be performed until logged in thus safe enough to check if a container is running or not
-
-#not yet ready do not test
         
         headers = request.headers
 
@@ -888,14 +886,14 @@ class ChallengeStart(Resource):
             return {"status":"Invalid Useremail"},400
         
 
-        #challengeid input validation
-        try:
-            if int(head["Challengeid"]) < 0:
-                return {"status":"Challengeid cannot be negative"},400
-        except ValueError:
-            return {"status":"Challengeid must be an integer"},400
-        except TypeError:
-            return {"status":"Challengeid must be an integer"},400
+        # #challengeid input validation
+        # try:
+        #     if int(head["Challengeid"]) < 0:
+        #         return {"status":"Challengeid cannot be negative"},400
+        # except ValueError:
+        #     return {"status":"Challengeid must be an integer"},400
+        # except TypeError:
+        #     return {"status":"Challengeid must be an integer"},400
 
 
        
@@ -925,11 +923,12 @@ class ChallengeStart(Resource):
             return {"error":"User does not have a container"},404
 
 
-        return {"connection":f"{Containersdata.connection}"},200
+        return {"connection":f"{Containersdata.connection}","challenge_id":f"{Containersdata.challenge_id}"},200
 
     @require_verified_emails
     @check_challenge_visibility
     @during_ctf_time_only
+    
     def post(self):
         
         headers = request.headers
@@ -1030,7 +1029,7 @@ class ChallengeStart(Resource):
         if chal_data.state == "hidden":
             return {"status":"Improper challengeid"},423
 
-        if chal_data.category != "web":
+        if str(chal_data.category).upper() != str("web").upper():
             return {"status":"Improper request for challenge"},400
 
         try:
@@ -1044,7 +1043,7 @@ class ChallengeStart(Resource):
         #checking if user already has a container
         Containersdata = Containers.query.filter_by(user_id=head["Userid"]).first()
         if Containersdata:
-            return {"status":"User already has a container. Delete it first before creating a new one","connection_id":Containersdata.connection},409
+            return {"status":"User already has a container. Delete it first before creating a new one","challenge_id":f"{Containersdata.challenge_id}","connection_id":Containersdata.connection},409
 
         #port assigning
         while True:
@@ -1294,7 +1293,7 @@ class ChallengeStart(Resource):
         response_delete = portainer.delete_containers(
             endpoint=endpoint,
             key=api_key,
-            id = container_id) 
+            id = container_id)
         
         try:
             response_status = int(response_delete.status_code)
@@ -1315,5 +1314,13 @@ class ChallengeStart(Resource):
         except:
             return {"error":"container deleted but port not updated"},207
 
+
+        try:
+            db.session.delete(Containersdata)
+            db.session.commit()
+        except:
+            return {"error":"container deleted but data base not updated"},207
+        
+        
         return {"status":"container deleted"},200
 
